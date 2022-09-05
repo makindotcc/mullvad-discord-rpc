@@ -6,50 +6,41 @@ use std::time::SystemTime;
 
 pub const APP_ID: ds::AppId = 1015745829954404362;
 
-pub struct DiscordClient {
-    pub discord: ds::Discord,
-    pub user: ds::user::User,
-    pub wheel: ds::wheel::Wheel,
-}
+pub async fn connect_to_discord() -> ds::Discord {
+    let (wheel, handler) = ds::wheel::Wheel::new(Box::new(|err| {
+        eprintln!("Encountered an error in discord wheel: {:?}", err);
+    }));
+    let mut user = wheel.user();
+    let discord = ds::Discord::new(
+        ds::DiscordApp::PlainId(APP_ID),
+        Subscriptions::empty(),
+        Box::new(handler),
+    )
+    .unwrap();
 
-impl DiscordClient {
-    pub async fn new(subs: Subscriptions) -> DiscordClient {
-        let (wheel, handler) = ds::wheel::Wheel::new(Box::new(|err| {
-            eprintln!("Encountered an error in discord wheel: {:?}", err);
-        }));
-
-        let mut user = wheel.user();
-        let discord =
-            ds::Discord::new(ds::DiscordApp::PlainId(APP_ID), subs, Box::new(handler)).unwrap();
-
-        println!("Waiting for discord handshake...");
-        user.0.changed().await.unwrap();
-        let user = match &*user.0.borrow() {
-            ds::wheel::UserState::Connected(user) => user.clone(),
-            ds::wheel::UserState::Disconnected(err) => {
-                panic!("failed to connect to Discord: {:?}", err)
-            }
-        };
-
-        println!("Connected to Discord, local user is {:#?}", user);
-        DiscordClient {
-            discord,
-            user,
-            wheel,
+    println!("Waiting for discord handshake...");
+    user.0.changed().await.unwrap();
+    let user = match &*user.0.borrow() {
+        ds::wheel::UserState::Connected(user) => user.clone(),
+        ds::wheel::UserState::Disconnected(err) => {
+            panic!("failed to connect to Discord: {:?}", err)
         }
-    }
+    };
+    println!("Connected to Discord, local user is {:#?}", user);
+
+    discord
 }
 
 pub struct Rpc {
-    discord_client: DiscordClient,
+    discord: ds::Discord,
     state: RpcState,
 }
 
 impl Rpc {
     pub async fn new() -> Rpc {
-        let discord_client = DiscordClient::new(Subscriptions::empty()).await;
+        let discord_client = connect_to_discord().await;
         Rpc {
-            discord_client,
+            discord: discord_client,
             state: RpcState::Inactive,
         }
     }
@@ -64,8 +55,7 @@ impl Rpc {
             })) => {
                 let active = self.state.update_relay(relay_info.clone());
                 let activity = build_activity(relay_info).start_timestamp(active.started_at);
-                self.discord_client
-                    .discord
+                self.discord
                     .update_activity(activity)
                     .await?;
                 self.state = RpcState::Active(active);
@@ -74,7 +64,7 @@ impl Rpc {
             _ => {
                 if let RpcState::Active(_) = self.state {
                     self.state = RpcState::Inactive;
-                    self.discord_client.discord.clear_activity().await?;
+                    self.discord.clear_activity().await?;
                 }
                 Ok(())
             }
