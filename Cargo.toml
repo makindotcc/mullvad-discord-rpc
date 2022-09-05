@@ -1,0 +1,12 @@
+[package]
+name = "mullvadrpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = "1.21.0"
+tokio-stream = "0.1.9"
+tonic = "0.5"
+mullvad-types = { git = "https://github.com/mullvad/mullvadvpn-app" }
+mullvad-management-interface = { git = "https://github.com/mullvad/mullvadvpn-app" }
+discord-sdk = "0.3.0"
