@@ -55,9 +55,7 @@ impl Rpc {
             })) => {
                 let active = self.state.update_relay(relay_info.clone());
                 let activity = build_activity(relay_info).start_timestamp(active.started_at);
-                self.discord
-                    .update_activity(activity)
-                    .await?;
+                self.discord.update_activity(activity).await?;
                 self.state = RpcState::Active(active);
                 Ok(())
             }
@@ -120,7 +118,7 @@ fn activity_state(relay_info: &TunnelStateRelayInfo) -> String {
             city,
             hostname,
             ..
-        }) => format!("Secure connection to {}/{}/{}", country, city, hostname),
+        }) => format!("Exit: {} ({}/{})", hostname, country, city),
         _ => String::from("Secure connection"),
     }
 }
